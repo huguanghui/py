@@ -2,8 +2,24 @@
 import socket
 import ctypes
 
-multicast_group = '238.238.238.238'
-port = 8888
+multicast_group = "238.238.238.238"
+port = 8080
+
+
+class gsf_search_t(ctypes.Structure):
+    _fields_ = [
+        ("data", ctypes.c_uint8 * 2),
+    ]
+
+
+class sadp_dev_info_t(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_int),
+        ("soft_ver", ctypes.c_char * 24),
+        ("hard_ver", ctypes.c_char * 24),
+        ("sn", ctypes.c_char * 64),
+        ("mac", ctypes.c_char * 6),
+    ]
 
 
 class gsf_user_t(ctypes.Structure):
@@ -54,23 +70,28 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 
 
-msg = gsf_sadp_msg_t()
-msg.ver = 1
-msg.modid = 0
-msg.devid = 0
-msg.user.name = b"admin"
-msg.user.pwd = b"admin"
-msg.user.caps = 0xFFFFFFFFFFFFFFFF
-msg.msg.ver = 1
-msg.msg.id = 8
-msg.msg.ch = 0
-msg.msg.set = 0
-msg.msg.sid = 0
-msg.msg.nsave = 0
-msg.msg.ts = 0
-msg.msg.err = 0
-msg.msg.size = 0
-msg_bytes = ctypes.string_at(ctypes.byref(msg), ctypes.sizeof(msg))
+# msg = gsf_sadp_msg_t()
+# msg.ver = 1
+# msg.modid = 0
+# msg.devid = 0
+# msg.user.name = b"admin"
+# msg.user.pwd = b"admin"
+# msg.user.caps = 0xFFFFFFFFFFFFFFFF
+# msg.msg.ver = 1
+# msg.msg.id = 8
+# msg.msg.ch = 0
+# msg.msg.set = 0
+# msg.msg.sid = 0
+# msg.msg.nsave = 0
+# msg.msg.ts = 0
+# msg.msg.err = 0
+# msg.msg.size = 0
+# msg_bytes = ctypes.string_at(ctypes.byref(msg), ctypes.sizeof(msg))
+# sock.sendto(msg_bytes, (multicast_group, port))
+gsf_search = gsf_search_t()
+gsf_search.data[0] = 0xBE
+gsf_search.data[1] = 0xEF
+msg_bytes = ctypes.string_at(ctypes.byref(gsf_search), ctypes.sizeof(gsf_search))
 sock.sendto(msg_bytes, (multicast_group, port))
 
 sock.settimeout(2)
@@ -78,21 +99,30 @@ while True:
     try:
         # 设置超时时间为5秒
         data, address = sock.recvfrom(1024)
-        msg_size = ctypes.sizeof(gsf_msg_t)
-        out_msg = gsf_msg_t.from_buffer_copy(data[:msg_size])
-        print(f'msg_size: {msg_size}')
-        print(f"out_msg.ver: {out_msg.ver}")
-        print(f'out_msg.size: {out_msg.size}')
-        print(f'out_msg.err: {out_msg.err}')
-        if out_msg.err == 0 and out_msg.size == ctypes.sizeof(gsf_base_t) and out_msg.size == len(data[msg_size:]):
-            base = gsf_base_t.from_buffer_copy(data[msg_size:])
-            print(f'base.name: {base.name}')
-            print(f'base.language: {base.language}')
-            print(f'base.zone: {base.zone}')
-            print(f'base.mcastdev: {base.mcastdev}')
-        print(f'Received message from {address}')
+        # msg_size = ctypes.sizeof(gsf_msg_t)
+        # out_msg = gsf_msg_t.from_buffer_copy(data[:msg_size])
+        # print(f'msg_size: {msg_size}')
+        # print(f"out_msg.ver: {out_msg.ver}")
+        # print(f'out_msg.size: {out_msg.size}')
+        # print(f'out_msg.err: {out_msg.err}')
+        # if out_msg.err == 0 and out_msg.size == ctypes.sizeof(gsf_base_t) and out_msg.size == len(data[msg_size:]):
+        #     base = gsf_base_t.from_buffer_copy(data[msg_size:])
+        #     print(f'base.name: {base.name}')
+        #     print(f'base.language: {base.language}')
+        #     print(f'base.zone: {base.zone}')
+        #     print(f'base.mcastdev: {base.mcastdev}')
+        msg_size = ctypes.sizeof(sadp_dev_info_t)
+        if len(data) >= msg_size:
+            out_msg = sadp_dev_info_t.from_buffer_copy(data[:msg_size])
+            print(f"out_msg.type: {hex(out_msg.type)}")
+            print(f"out_msg.soft_ver: {out_msg.soft_ver}")
+            print(f"out_msg.hard_ver: {out_msg.hard_ver}")
+            print(f"out_msg.sn: {out_msg.sn}")
+            mac_address = ":".join("{:02x}".format(byte) for byte in out_msg.mac)
+            print(f"out_msg.mac: {mac_address}")
+        print(f"Received message from {address}")
     except socket.timeout:
-        print('receive complete')
+        print("receive complete")
         break
 
 sock.close()
